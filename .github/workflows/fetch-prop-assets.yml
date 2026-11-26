@@ -1,0 +1,24 @@
+name: Fetch CC0 game props
+on:
+  push:
+    branches: [character-lab-v010-animation-review]
+    paths: ['.github/workflows/fetch-prop-assets.yml']
+permissions:
+  contents: read
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download selected public game meshes
+        run: |
+          mkdir -p props
+          base='https://raw.githubusercontent.com/petroulacl/fps-asset-kit/main/weapons/flat_guns_west/Flat%20Guns%20West/GLB'
+          curl -fL "$base/Pistol_Full_West.glb" -o props/Pistol_Full_West.glb
+          curl -fL "$base/Rifle_Assault_West.glb" -o props/Rifle_Assault_West.glb
+          python -c 'import pathlib; assert all(p.read_bytes()[:4] == b"glTF" for p in pathlib.Path("props").glob("*.glb"))'
+          curl -fL https://raw.githubusercontent.com/petroulacl/fps-asset-kit/main/README.md -o props/FPS-ASSET-KIT-README.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cc0-props-v034
+          path: props/
+          if-no-files-found: error
