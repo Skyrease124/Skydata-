@@ -12,11 +12,18 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           mkdir -p /tmp/package
-          cp -r index.html assets vendor _headers CREDITS.md /tmp/package/
+          cp -r index.html mixamo-review.js assets vendor _headers CREDITS.md /tmp/package/
+          npm pack three@0.170.0 --pack-destination /tmp --silent
+          tar -xzf /tmp/three-0.170.0.tgz -C /tmp
+          cp /tmp/package/examples/jsm/loaders/FBXLoader.js /tmp/package/vendor/three/examples/jsm/loaders/FBXLoader.js
+          cp /tmp/package/examples/jsm/libs/fflate.module.js /tmp/package/vendor/three/examples/jsm/libs/fflate.module.js
+          cp -r /tmp/package/examples/jsm/curves /tmp/package/vendor/three/examples/jsm/
+          rm -rf /tmp/package/examples /tmp/package/src /tmp/package/build /tmp/package/package.json /tmp/package/README.md /tmp/package/LICENSE
+          node --check /tmp/package/mixamo-review.js
           cd /tmp/package
-          zip -qr "$RUNNER_TEMP/City-Sandbox-V010-Netlify.zip" .
+          zip -qr "$RUNNER_TEMP/City-Sandbox-V011-Netlify.zip" index.html mixamo-review.js assets vendor _headers CREDITS.md
       - uses: actions/upload-artifact@v4
         with:
-          name: City-Sandbox-V010-Netlify
-          path: ${{ runner.temp }}/City-Sandbox-V010-Netlify.zip
+          name: City-Sandbox-V011-Netlify
+          path: ${{ runner.temp }}/City-Sandbox-V011-Netlify.zip
           if-no-files-found: error
