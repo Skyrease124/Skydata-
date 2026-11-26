@@ -1,0 +1,21 @@
+const {chromium}=require('playwright');const sleep=ms=>new Promise(r=>setTimeout(r,ms));const fs=require('fs');
+const [url,out,tag,kinds]=[process.argv[2],process.argv[3],process.argv[4],(process.argv[5]||'pistol,rifle').split(',')];
+(async()=>{const b=await chromium.launch({args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});const p=await b.newPage({viewport:{width:900,height:900}});const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text().slice(0,160))});
+await p.goto(url);await p.waitForFunction(()=>globalThis.__lab?.bridge?.visible&&CharacterLab.state.propLab.ready,null,{timeout:120000});await sleep(2500);await p.evaluate(()=>{const s=document.getElementById('settings-close');if(s&&!document.getElementById('panel').hidden)s.click();document.getElementById('panel').hidden=true});await sleep(500);
+const st=()=>p.evaluate(()=>{const s=CharacterLab.state;return {mode:s.mode,live:s.liveMotion,equipped:s.propLab.equipped,pickup:s.propLab.pickup,approach:s.propLab.approachingPickup,models:s.propLab.models,grip:globalThis.__lab.prop.weaponGrip?.state}});
+async function shoot(name){const img=await p.evaluate(()=>{const {camera,renderer,scene,bridge}=globalThis.__lab;const yaw=CharacterLab.state.yaw,f=[Math.sin(yaw),0,Math.cos(yaw)],l=[Math.cos(yaw),0,-Math.sin(yaw)];const cam=camera.clone();cam.fov=34;cam.aspect=1;cam.updateProjectionMatrix();const rh=bridge.bones.get('righthand').getWorldPosition(camera.position.clone()),lh=bridge.bones.get('lefthand').getWorldPosition(camera.position.clone());const c=rh.clone().lerp(lh,.35);const o={};
+ for(const [v,d] of Object.entries({front:[f[0],.15,f[2]],right:[-l[0],.1,-l[2]],left:[l[0],.1,l[2]],top:[f[0]*.2-l[0]*.2,1,f[2]*.2-l[2]*.2],rear:[-f[0]-l[0]*.5,.35,-f[2]-l[2]*.5]})){const L=Math.hypot(...d);cam.position.set(c.x+d[0]/L*.75,c.y+d[1]/L*.75,c.z+d[2]/L*.75);cam.up.set(0,1,0);if(v==='top')cam.up.set(f[0],0,f[2]);cam.lookAt(c);renderer.render(scene,cam);const cv=renderer.domElement,t=document.createElement('canvas'),m=Math.min(cv.width,cv.height);t.width=t.height=360;t.getContext('2d').drawImage(cv,(cv.width-m)/2,(cv.height-m)/2,m,m,0,0,360,360);o[v]=t.toDataURL()}return o});
+ for(const [k,v] of Object.entries(img))fs.writeFileSync(`${out}/${tag}-${name}-${k}.png`,Buffer.from(v.split(',')[1],'base64'))}
+const R={};
+for(const kind of kinds){
+ // stand next to the station using the game's own anchor, then press the real Action button
+ await p.evaluate(k=>{const a=CharacterLab.state.propLab.anchors.find(x=>x.kind===k);const pl=globalThis.__lab.player;pl.x=a.x;pl.z=a.z;pl.yaw=a.yaw;pl.vx=pl.vz=0},kind);await sleep(1500);
+ const btn=await p.evaluate(()=>{const b=document.getElementById('live-action');return b&&!b.hidden?b.textContent:null});R[kind+'_button']=btn;if(btn)await p.click('#live-action');
+ for(let i=0;i<40;i++){await sleep(1000);const s=await st();if(s.equipped===kind)break}R[kind+'_equipped']=(await st()).equipped;R[kind+'_status']=await p.evaluate(()=>document.getElementById('prop-status')?.textContent);await sleep(2500);
+ await shoot(kind+'-carry');R[kind+'_carry']=await st();
+ R[kind+'_hud']=await p.evaluate(()=>[...document.querySelectorAll('#prop-hud button')].map(b=>b.dataset.prop+(b.hidden?':hidden':'')+(document.getElementById('prop-hud').hidden?'(hud hidden)':'')).join(','));if(await p.evaluate(()=>{const b=document.querySelector('[data-prop="aim"]');if(b&&!b.hidden){b.click();return true}return false})){await sleep(3500);await shoot(kind+'-aim');R[kind+'_aim']=await st();}
+ if(await p.isVisible('[data-prop="fire"]')){await p.click('[data-prop="fire"]');await sleep(700);await shoot(kind+'-fire');R[kind+'_fire']=await st();await sleep(2500)}
+ if(await p.isVisible('[data-prop="reload"]')){await p.click('[data-prop="reload"]');await sleep(1600);await shoot(kind+'-reload');R[kind+'_reload']=await st();await sleep(3000)}
+ await p.keyboard.down('w');await sleep(2500);await shoot(kind+'-walk');R[kind+'_walk']=await st();await p.keyboard.up('w');await sleep(800);
+ if(await p.isVisible('[data-prop="drop"]')){await p.click('[data-prop="drop"]');await sleep(5000)}R[kind+'_afterDrop']=(await st()).equipped}
+R.errors=errs;console.log(JSON.stringify(R));await b.close()})();
