@@ -1,0 +1,31 @@
+# Draft (preview) deploy of Character Lab to the EXISTING Netlify project city-sandbox-alpha.
+# Never publishes to production: there is no --prod flag. Needs one repository secret: NETLIFY_AUTH_TOKEN.
+name: Netlify draft deploy
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/character-lab-netlify-deploy-uap0ex]
+    paths: [index.html, assets/**, vendor/**, _headers, .github/workflows/netlify-draft.yml]
+permissions:
+  contents: read
+env:
+  NETLIFY_SITE_ID: 254aa3ed-6d20-4a56-a3aa-992aa3064a88
+  NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check token
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "::error::Add a repository secret named NETLIFY_AUTH_TOKEN (Settings > Secrets and variables > Actions)."; exit 1
+          fi
+      - name: Assemble runtime files only
+        run: mkdir dist && cp -r index.html _headers CREDITS.md assets vendor dist/ && du -sh dist
+      - name: Draft deploy (no --prod)
+        run: |
+          npx --yes netlify-cli@latest deploy --dir dist --site "$NETLIFY_SITE_ID" --message "Character Lab V0.9 ${GITHUB_SHA::7}" --json > deploy.json
+          cat deploy.json
+          URL=$(python3 -c "import json;print(json.load(open('deploy.json')).get('deploy_url',''))")
+          echo "### Draft preview" >> "$GITHUB_STEP_SUMMARY"; echo "$URL" >> "$GITHUB_STEP_SUMMARY"
