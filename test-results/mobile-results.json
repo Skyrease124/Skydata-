@@ -84,9 +84,9 @@
  "stuckAfterCancel": 0,
  "cameraYawChanged": true,
  "fps": [
-  "10 FPS",
-  "10 FPS",
-  "9 FPS"
+  "8 FPS",
+  "9 FPS",
+  "8 FPS"
  ],
  "scrollOverflowX": false,
  "hosts": [

@@ -16,6 +16,12 @@ Static site (no build step). Deploy the contents of `dist/` (or `character-lab-v
 * Touch: pointer capture is guarded (`InvalidPointerId`), per-button pointer sets, release on cancel / leave / blur / page hide.
 * Three.js and all character files are local; unavailable sources are disabled via `assets/manifest.json`.
 
+## Loading (fixed after the first Netlify publish)
+V0.9's first upload showed a stand-in character on a phone: Sam was 21.9 MB and the fixed 18 s timeout expired, so the game silently fell back to the placeholder.
+* `sam.glb` textures converted PNG to WebP at the same resolution: 21.9 MB to 7.2 MB (`gltf-transform webp in.glb out.glb --quality 90 --slots "*"`).
+* Download progress card; the timeout now only fires after 30 s with no bytes; one automatic retry; a clear error card with Try again.
+* No silent swap to another character, and the stand-in rig is never shown while Sam loads. Source availability comes only from `assets/manifest.json`.
+
 ## Rebuild
     python3 tools/patch.py            # tools/v08.html + tools/head.html -> index.html
     python3 tools/make-manifest.py    # list bundled .glb files

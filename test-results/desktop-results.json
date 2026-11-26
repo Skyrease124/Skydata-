@@ -1,5 +1,5 @@
 {
- "loadMs": 3434,
+ "loadMs": 3099,
  "sources": [
   "Custom human (file not bundled) [disabled]",
   "Sam · MakeHuman locomotion [enabled]",
@@ -34,7 +34,7 @@
    "detached": true,
    "contacts": 0
   },
-  "natural": 0.9955580715740657
+  "natural": 0.9932620530009145
  },
  "report": [
   "Rigged model · 7 clips. Missing optional: none. Retargeted jump/fall/land/crouch added.",
@@ -67,12 +67,12 @@
  "crouchWalk": [
   "crouchWalk"
  ],
- "gaitDuringCrouch": "crouchWalk 7% · idle 93%",
+ "gaitDuringCrouch": "crouchWalk 15% · idle 85%",
  "fps": [
+  "6 FPS",
   "7 FPS",
   "7 FPS",
-  "8 FPS",
-  "8 FPS"
+  "7 FPS"
  ],
  "hosts": [
   "localhost:8124"
@@ -86,17 +86,16 @@
   "/vendor/three/examples/jsm/utils/BufferGeometryUtils.js",
   "/assets/manifest.json",
   "/assets/characters/sam.glb",
-  "/assets/hero.glb",
-  "http://localhost:8124/668022e8-4c99-4215-8aa8-6b9a5e0cb356",
-  "http://localhost:8124/30a20c95-19d9-4239-ade3-744572ec1c5f",
-  "http://localhost:8124/bcbdac2c-b2b8-455b-b325-2aa6d1842c70",
-  "http://localhost:8124/fe07df4e-1ed7-4d36-8e61-b15cf41ac021",
-  "http://localhost:8124/7de29771-bea2-4bdb-9434-480e5c3b35a3",
-  "http://localhost:8124/68bb3b6a-9eb7-424e-9677-fda6151abcc6",
-  "http://localhost:8124/49b61793-3ef0-4fb8-9aab-9dbca0412302",
-  "http://localhost:8124/a8823d5f-08b6-48d4-a1c9-9a722a9a2609",
-  "http://localhost:8124/2f2ce73b-9b61-40ed-83d6-ab72b15b74f4",
-  "http://localhost:8124/ba127438-df6a-49c7-81ca-bc1eafee018e",
+  "http://localhost:8124/e285c871-0a64-469b-a622-a57d0a041999",
+  "http://localhost:8124/df803ee7-646a-4db9-b373-6fef8dab8c26",
+  "http://localhost:8124/db0b9d0c-3b6b-406d-a0a9-cd8f75d83e5f",
+  "http://localhost:8124/c4e745bc-5350-428e-886c-670a57caaa16",
+  "http://localhost:8124/209fa2ce-6daa-4275-b60f-9e1537b9dc92",
+  "http://localhost:8124/32e1bb01-48a6-4afb-b6dc-c35282bfad43",
+  "http://localhost:8124/79302962-3654-4271-8e8e-9b642443ce2e",
+  "http://localhost:8124/a8944913-d29a-4893-8b56-93b4d259e4c5",
+  "http://localhost:8124/c317b802-0b44-46bc-8b3b-dab0bb5e635c",
+  "http://localhost:8124/dbd1076c-868f-4c51-8b73-e657a2003800",
   "/assets/anims/ual-to-sam.json"
  ]
 }

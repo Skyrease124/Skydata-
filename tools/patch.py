@@ -27,7 +27,7 @@ const sources = {
   proxy: { label:'Development proxy (offline)', url:'./assets/hero.glb', required:['idle','walk','sprint'], credit:'Original development placeholder; not the final human.' }
 };
 const startupOrder=['sam','proxy'];
-let bundled=null;async function sourceExists(url){try{bundled??=await fetch('./assets/manifest.json',{cache:'no-cache'}).then(r=>r.ok?r.json():{files:[]}).catch(()=>({files:[]}));if(!bundled.files.includes(url.replace(/^\\.\\//,'')))return false;const r=await fetch(url,{method:'HEAD',cache:'no-cache'});if(!r.ok)return false;return !(r.headers.get('content-type')||'').includes('text/html')}catch(e){return false}}
+let bundled=null;async function sourceExists(url){try{bundled??=await fetch('./assets/manifest.json',{cache:'no-cache'}).then(r=>r.ok?r.json():{files:[]}).catch(()=>({files:[]}));return bundled.files.includes(url.replace(/^\\.\\//,''))}catch(e){return false}} // the manifest is authoritative; a transient HEAD failure must not disable Sam
 let bakedCache=null;async function loadBaked(url){if(!bakedCache)bakedCache=fetch(url).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()});return bakedCache}
 function applyArmFix(clip,fx){const drop=new Set(Object.keys(fx.quats).map(b=>b+'.quaternion')),tracks=clip.tracks.filter(t=>!drop.has(t.name)),times=[...fx.times,fx.duration];for(const [bone,arr] of Object.entries(fx.quats))tracks.push(new T.QuaternionKeyframeTrack(bone+'.quaternion',times,[...arr,...arr.slice(0,4)]));return new T.AnimationClip(clip.name+' (arms phase-corrected)',clip.duration,tracks)}\nfunction bakedClips(b){const out={};for(const [state,c] of Object.entries(b.clips)){const times=[...c.times],tracks=[];if(c.loop)times.push(c.duration);const wrap=(arr,n)=>c.loop?[...arr,...arr.slice(0,n)]:arr;for(const [bone,arr] of Object.entries(c.quats))tracks.push(new T.QuaternionKeyframeTrack(bone+'.quaternion',times,wrap(arr,4)));for(const [bone,arr] of Object.entries(c.pos))tracks.push(new T.VectorKeyframeTrack(bone+'.position',times,wrap(arr,3)));for(const [bone,q] of Object.entries(b.fingers))tracks.push(new T.QuaternionKeyframeTrack(bone+'.quaternion',[0,c.duration],[...q,...q]));out[state]=new T.AnimationClip('ual · '+state,c.duration,tracks)}return out}
 ''',include_end=True)
@@ -109,7 +109,7 @@ between("for(const [key,meta] of Object.entries(sources)){const option","(async(
 const sortOptions=()=>{const sel=$('#source');[...sel.options].sort((a,b)=>Object.keys(sources).indexOf(a.value)-Object.keys(sources).indexOf(b.value)).forEach(o=>sel.append(o))};
 $('#asset').addEventListener('change',async e=>{const f=e.target.files[0];if(f){if(f.size>80*1024*1024){$('#report').textContent='Model exceeds 80 MB test limit.';return}const selected=sources[$('#source').value];await load(await f.arrayBuffer(),f.name,selected===sources.proxy?sources.custom:selected)}e.target.value=''});
 ''')
-rep("(async()=>{const failures=[];for(const id of startupOrder){if(await selectSource(id))","(async()=>{await availability;sortOptions();const failures=[];for(const id of startupOrder){if(!sources[id].available){failures.push(sources[id].label+' missing');continue}if(await selectSource(id))")
+rep("(async()=>{const failures=[];for(const id of startupOrder){if(await selectSource(id))","(async()=>{await availability;sortOptions();if(sources[startupOrder[0]]?.available)$('#source').value=startupOrder[0];const failures=[];for(const id of startupOrder){if(!sources[id].available){failures.push(sources[id].label+' missing');continue}if(await selectSource(id))")
 rep("Human sources unavailable; use the selector or import a GLB. '+failures.join(' · ')","Human sources unavailable. '+failures.join(' · ')")
 
 # ---------- 5. animate(): rewritten, old procedural rig kept as fallback ----------
@@ -153,6 +153,31 @@ function animate(dt){if(!mixer){proceduralAnimate(dt);return}
 js=js[:a]+new_animate+js[b:]
 # crouch/jump input gates use the merged actions, unchanged. Reset the cached animation state with the model.
 rep("active=null;audition=null;auditionPaused=false;sourceMeta=meta;","active=null;audition=null;auditionPaused=false;lastState='idle';landT=9;airVy=0;sourceMeta=meta;")
+
+
+# ---------- 8. robust loading: progress, stall timeout, never silently swap characters ----------
+between("async function fetchModel(","// Pure locomotion blend",'''async function fetchModel(url,{fetcher=fetch,stall=30000,maxBytes=80*1024*1024,onProgress}={}){
+  // A fixed total timeout fails on phone connections (V0.8 gave up after 18 s). Only abort when no bytes arrive for `stall` ms.
+  const controller=new AbortController();let timer;const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),stall)};arm();
+  try{const response=await fetcher(url,{signal:controller.signal,credentials:'omit'});if(!response.ok)throw Error('HTTP '+response.status);const total=Number(response.headers.get('content-length'))||0;if(total>maxBytes)throw Error('Model exceeds size limit');
+   let buf;if(response.body&&response.body.getReader){const reader=response.body.getReader(),chunks=[];let got=0;for(;;){const {done,value}=await reader.read();if(done)break;arm();chunks.push(value);got+=value.length;if(got>maxBytes)throw Error('Model exceeds size limit');onProgress?.(got,total)}const out=new Uint8Array(got);let o=0;for(const c of chunks){out.set(c,o);o+=c.length}buf=out.buffer}else buf=await response.arrayBuffer();
+   if(buf.byteLength>maxBytes||buf.byteLength<20)throw Error('Invalid model size');const v=new DataView(buf);if(v.getUint32(0,true)!==0x46546c67||v.getUint32(4,true)!==2||v.getUint32(8,true)!==buf.byteLength)throw Error('Source did not return a complete GLB v2');return buf;}
+  catch(e){if(e.name==='AbortError')throw Error('download stalled for '+stall/1000+' s');throw e}finally{clearTimeout(timer)}
+}
+
+''')
+rep("let loading=false;","""const loadingUI=(()=>{const box=$('#loading'),bar=$('#loading-bar'),title=$('#loading-title'),detail=$('#loading-detail'),retry=$('#loading-retry'),dismiss=$('#loading-dismiss');let again=null;retry.onclick=()=>{const f=again;again=null;if(f)f()};dismiss.onclick=()=>{box.hidden=true};const mb=x=>(x/1048576).toFixed(1);
+ return {start(name){again=null;box.hidden=false;box.classList.remove('failed');title.textContent='Loading '+name;detail.textContent='Starting download…';bar.style.width='3%';retry.hidden=true;dismiss.hidden=true},
+ progress(got,total){if(total){bar.style.width=Math.max(3,Math.round(100*got/total))+'%';detail.textContent=mb(got)+' / '+mb(total)+' MB'}else detail.textContent=mb(got)+' MB'},
+ parsing(){bar.style.width='100%';detail.textContent='Preparing character…'},done(){box.hidden=true},
+ fail(msg,fn){box.hidden=false;box.classList.add('failed');title.textContent='Could not load the character';detail.textContent=msg;again=fn;retry.hidden=false;dismiss.hidden=false}}})();
+let loading=false;""")
+rep("$('#report').textContent='Loading '+name+'…';try{const bytes=typeof source==='string'?await fetchModel(source):source;const gltf=","$('#report').textContent='Loading '+name+'…';if(typeof source==='string'||true)loadingUI.start(name);try{const bytes=typeof source==='string'?await fetchModel(source,{onProgress:loadingUI.progress}):source;loadingUI.parsing();const gltf=")
+rep("install(gltf,name,meta,baked);return true}catch(e){$('#report').textContent='Import failed: '+e.message+'. Previous model kept.';return false;}","install(gltf,name,meta,baked);loadingUI.done();return true}catch(e){$('#report').textContent='Import failed: '+e.message+(model?'. Previous model kept.':'.');loadingUI.fail(e.message,()=>load(source,name,meta));return false;}")
+rep("const startupOrder=['sam','proxy'];","const startupOrder=['sam']; // never swap to a different character automatically; the placeholder is only available from the menu")
+rep("if(await selectSource(id)){","if(await selectSource(id)||await selectSource(id)){")
+rep("$('#report').textContent='No GLB loaded. Procedural fallback active.'","$('#report').textContent='Sam could not be loaded. Use Try again, or pick another source in Settings.'")
+rep("const fallback=new T.Group();root.add(fallback);","const fallback=new T.Group();root.add(fallback);fallback.visible=false; // never show the stand-in rig while Sam loads\n")
 
 # ---------- 6. input: guarded pointer capture, per-button pointer sets, safety release ----------
 between("document.querySelectorAll('[data-key]').forEach(b=>{","let yaw=0,pitch=.18,zoom=4.5,last=null;",'''// V0.9: setPointerCapture throws InvalidPointerId when a pointer was cancelled/never existed (e.g. a touch taken over by the
