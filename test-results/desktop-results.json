@@ -1,5 +1,5 @@
 {
- "loadMs": 3099,
+ "loadMs": 2291,
  "sources": [
   "Custom human (file not bundled) [disabled]",
   "Sam · MakeHuman locomotion [enabled]",
@@ -34,7 +34,7 @@
    "detached": true,
    "contacts": 0
   },
-  "natural": 0.9932620530009145
+  "natural": 0.9955580715740657
  },
  "report": [
   "Rigged model · 7 clips. Missing optional: none. Retargeted jump/fall/land/crouch added.",
@@ -67,10 +67,10 @@
  "crouchWalk": [
   "crouchWalk"
  ],
- "gaitDuringCrouch": "crouchWalk 15% · idle 85%",
+ "gaitDuringCrouch": "crouchWalk 10% · idle 90%",
  "fps": [
-  "6 FPS",
   "7 FPS",
+  "8 FPS",
   "7 FPS",
   "7 FPS"
  ],
@@ -80,22 +80,22 @@
  "errors": [],
  "requests": [
   "/index.html",
+  "/assets/characters/sam.glb",
+  "/assets/anims/ual-to-sam.json",
   "/vendor/three/build/three.module.js",
   "/vendor/three/examples/jsm/loaders/GLTFLoader.js",
   "/vendor/three/examples/jsm/libs/meshopt_decoder.module.js",
   "/vendor/three/examples/jsm/utils/BufferGeometryUtils.js",
   "/assets/manifest.json",
-  "/assets/characters/sam.glb",
-  "http://localhost:8124/e285c871-0a64-469b-a622-a57d0a041999",
-  "http://localhost:8124/df803ee7-646a-4db9-b373-6fef8dab8c26",
-  "http://localhost:8124/db0b9d0c-3b6b-406d-a0a9-cd8f75d83e5f",
-  "http://localhost:8124/c4e745bc-5350-428e-886c-670a57caaa16",
-  "http://localhost:8124/209fa2ce-6daa-4275-b60f-9e1537b9dc92",
-  "http://localhost:8124/32e1bb01-48a6-4afb-b6dc-c35282bfad43",
-  "http://localhost:8124/79302962-3654-4271-8e8e-9b642443ce2e",
-  "http://localhost:8124/a8944913-d29a-4893-8b56-93b4d259e4c5",
-  "http://localhost:8124/c317b802-0b44-46bc-8b3b-dab0bb5e635c",
-  "http://localhost:8124/dbd1076c-868f-4c51-8b73-e657a2003800",
-  "/assets/anims/ual-to-sam.json"
+  "http://localhost:8124/f1d45a5a-0b56-4846-844d-aab9dcda6499",
+  "http://localhost:8124/fc908c39-6e42-4f22-8d77-eee52189c2ff",
+  "http://localhost:8124/a40fae58-f762-4207-8a72-ee7182d3dcd1",
+  "http://localhost:8124/12040eac-0ece-4469-9022-418dabec1b6b",
+  "http://localhost:8124/f014f1dd-9197-45a1-b92c-a1a8a9e461c9",
+  "http://localhost:8124/ba67f935-8530-4355-a9d9-04266ff2716c",
+  "http://localhost:8124/1f0558b9-4bbe-4be6-bc04-66b9032b7c9e",
+  "http://localhost:8124/4cd6ce2f-5266-4ca8-a7eb-53b9ed731a2f",
+  "http://localhost:8124/857cddbe-3027-4990-ba02-6df4d6432f4b",
+  "http://localhost:8124/eceddeec-a2aa-4804-9789-68081eb22b27"
  ]
 }

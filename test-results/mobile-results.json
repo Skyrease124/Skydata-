@@ -84,8 +84,8 @@
  "stuckAfterCancel": 0,
  "cameraYawChanged": true,
  "fps": [
-  "8 FPS",
   "9 FPS",
+  "8 FPS",
   "8 FPS"
  ],
  "scrollOverflowX": false,
