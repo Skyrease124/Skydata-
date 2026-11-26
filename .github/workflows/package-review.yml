@@ -11,19 +11,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p /tmp/package
-          cp -r index.html mixamo-review.js assets vendor _headers CREDITS.md /tmp/package/
+          mkdir -p /tmp/three-src
           npm pack three@0.170.0 --pack-destination /tmp --silent
-          tar -xzf /tmp/three-0.170.0.tgz -C /tmp
-          cp /tmp/package/examples/jsm/loaders/FBXLoader.js /tmp/package/vendor/three/examples/jsm/loaders/FBXLoader.js
-          cp /tmp/package/examples/jsm/libs/fflate.module.js /tmp/package/vendor/three/examples/jsm/libs/fflate.module.js
-          cp -r /tmp/package/examples/jsm/curves /tmp/package/vendor/three/examples/jsm/
-          rm -rf /tmp/package/examples /tmp/package/src /tmp/package/build /tmp/package/package.json /tmp/package/README.md /tmp/package/LICENSE
-          node --check /tmp/package/mixamo-review.js
-          cd /tmp/package
-          zip -qr "$RUNNER_TEMP/City-Sandbox-V011-Netlify.zip" index.html mixamo-review.js assets vendor _headers CREDITS.md
+          tar -xzf /tmp/three-0.170.0.tgz -C /tmp/three-src
+          cp /tmp/three-src/package/examples/jsm/loaders/FBXLoader.js vendor/three/examples/jsm/loaders/
+          cp /tmp/three-src/package/examples/jsm/libs/fflate.module.js vendor/three/examples/jsm/libs/
+          cp -r /tmp/three-src/package/examples/jsm/curves vendor/three/examples/jsm/
+          npm install --no-save --no-package-lock playwright@1.52.0
+          python3 tools/expand-review.py
+          python3 -m http.server 8124 --bind 127.0.0.1 >/tmp/serve.log 2>&1 &
+          if command -v google-chrome >/dev/null; then export CHROME="$(command -v google-chrome)"; else npx playwright install --with-deps chromium; fi
+          node tools/package-expanded.cjs
+          mkdir -p /tmp/review-package
+          cp -r index.html mixamo-review.js assets vendor _headers CREDITS.md motion-review-report.json /tmp/review-package/
+          cp tools/sources/ual-LICENSE.txt /tmp/review-package/UAL-LICENSE.txt
+          cd /tmp/review-package
+          zip -qr "$RUNNER_TEMP/City-Sandbox-V012-Netlify.zip" .
       - uses: actions/upload-artifact@v4
         with:
-          name: City-Sandbox-V011-Netlify
-          path: ${{ runner.temp }}/City-Sandbox-V011-Netlify.zip
+          name: City-Sandbox-V012-Netlify
+          path: ${{ runner.temp }}/City-Sandbox-V012-Netlify.zip
           if-no-files-found: error
