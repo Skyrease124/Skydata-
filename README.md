@@ -16,6 +16,13 @@ Static site (no build step). Deploy the contents of `dist/` (or `character-lab-v
 * Touch: pointer capture is guarded (`InvalidPointerId`), per-button pointer sets, release on cancel / leave / blur / page hide.
 * Three.js and all character files are local; unavailable sources are disabled via `assets/manifest.json`.
 
+## V0.9.1: idle deformation fix (commits d771cc9, ebcf264)
+V0.9 slowly bent into a lean with twisted legs while idle (head drifted 593 mm from the pelvis, calves 217 mm). Cause: Three.js only rewrites a bone when its
+animated value changes, so on Sam's static idle bones the natural-motion layer's per-frame adjustments accumulated. Fix: the layer restores every bone it touched
+before each mixer update, no longer moves the pelvis, and the leg solver is disabled for rigs with detached foot bones (Sam keeps his original leg animation).
+Measured with `tools/tests/deform.js` and `drift.js` (results in `test-results/v091/`): legs and pelvis are identical with the layer on or off, and
+head/clavicle/foot/leg ranges are the same in the first and last third of a long idle. Breathing is still active (about 32x the layer-off power at 0.23 Hz, ~3 mm shoulder rise).
+
 ## Loading (fixed after the first Netlify publish)
 V0.9's first upload showed a stand-in character on a phone: Sam was 21.9 MB and the fixed 18 s timeout expired, so the game silently fell back to the placeholder.
 * `sam.glb` textures converted PNG to WebP at the same resolution: 21.9 MB to 7.2 MB (`gltf-transform webp in.glb out.glb --quality 90 --slots "*"`).
