@@ -36,17 +36,18 @@ rep("function clipSpeed(source,state){return","function clipSpeed(source,state){
 
 # ---------- 2. leg solver (works for attached AND detached IK-style foot bones) ----------
 between("function createFootIK(model){","\n\n\n\n\n\n\n\nconst $=s=>",'''function createLegSolver(model){const bones=[];model.traverse(n=>{if(n.isBone)bones.push(n)});model.updateWorldMatrix(true,true);const legs=[];
- for(const aliases of Object.values(names)){const [hip,knee,foot]=aliases.map(x=>get(bones,x));if(!hip||!knee||!foot)continue;const h=hip.getWorldPosition(v()),k=knee.getWorldPosition(v()),f=foot.getWorldPosition(v());legs.push({hip,knee,foot,detached:!ancestor(knee,foot),a:h.distanceTo(k),b:k.distanceTo(f),sole:f.y,previous:null,lock:null,weight:0,original:null});}
+ for(const aliases of Object.values(names)){const [hip,knee,foot]=aliases.map(x=>get(bones,x));if(!hip||!knee||!foot)continue;const h=hip.getWorldPosition(v()),k=knee.getWorldPosition(v()),f=foot.getWorldPosition(v());legs.push({hip,knee,foot,detached:!ancestor(hip,knee)||!ancestor(knee,foot),a:h.distanceTo(k),b:k.distanceTo(f),sole:f.y,previous:null,lock:null,weight:0,original:null});}
+ const compatible=legs.length===2&&legs.every(l=>!l.detached&&Number.isFinite(l.a)&&Number.isFinite(l.b)&&l.a>.001&&l.b>.001);
  let drift=0,contacts=0;
  // Restore the animated pose before the next mixer update (covers bones with no animated tracks).
  function restore(){for(const l of legs)if(l.original){l.hip.quaternion.copy(l.original[0]);l.knee.quaternion.copy(l.original[1]);l.foot.quaternion.copy(l.original[2]);l.foot.position.copy(l.original[3]);l.original=null;}}
  function reset(){restore();for(const l of legs){l.previous=null;l.lock=null;l.weight=0;}drift=0;contacts=0;}
- function update(dt,{lock=false,solve=false}={}){if(!(lock||solve)||dt<=0||dt>.06){for(const l of legs){l.previous=null;l.lock=null;l.weight=0}drift=0;contacts=0;return;}model.updateWorldMatrix(true,true);drift=0;contacts=0;
+ function update(dt,{lock=false,solve=false}={}){if(!compatible||!lock||dt<=0||dt>.06){for(const l of legs){l.previous=null;l.lock=null;l.weight=0}drift=0;contacts=0;return;}model.updateWorldMatrix(true,true);drift=0;contacts=0;
  for(const l of legs){const h=l.hip.getWorldPosition(v()),k=l.knee.getWorldPosition(v()),f=l.foot.getWorldPosition(v());let target=f.clone();
   if(lock){const prev=l.previous;l.previous=f.clone();if(prev){const horizontal=Math.hypot(f.x-prev.x,f.z-prev.z)/dt;const contact=isContact({height:f.y-l.sole,verticalSpeed:(f.y-prev.y)/dt,horizontalSpeed:horizontal,locked:!!l.lock&&l.weight>.5});if(contact&&!l.lock)l.lock=f.clone();const keep=contact&&l.lock&&l.lock.distanceTo(f)<.20;l.weight=smooth(l.weight,keep?1:0,dt,.06);if(l.lock&&(l.lock.distanceTo(f)>.20||l.weight<.015)){l.lock=null;l.weight=0}if(l.lock&&keep){contacts++;drift+=horizontal;target=f.clone().lerp(l.lock,Math.min(.85,l.weight));}}}
   else{l.previous=null;l.lock=null;l.weight=0}
-  if(target.y<l.sole)target.y=l.sole; // never sink the ankle below its standing height
-  if(!solve&&target.distanceTo(f)<1e-5)continue;
+  // Preserve the animated ankle when no reliable planted contact exists.
+   if(target.distanceTo(f)<1e-5)continue;
   const dir=target.clone().sub(h),d=dir.length(),g=kneeGeometry(l.a,l.b,d);if(!g||d<.001)continue;dir.normalize();const bend=k.clone().sub(h);bend.addScaledVector(dir,-bend.dot(dir));if(bend.lengthSq()<1e-6)continue;bend.normalize();
   const newK=h.clone().addScaledVector(dir,g.along).addScaledVector(bend,g.side),newF=h.clone().addScaledVector(dir,g.reach);
   l.original=[l.hip.quaternion.clone(),l.knee.quaternion.clone(),l.foot.quaternion.clone(),l.foot.position.clone()];
@@ -56,7 +57,7 @@ between("function createFootIK(model){","\n\n\n\n\n\n\n\nconst $=s=>",'''functio
   if(l.detached){l.foot.parent.updateWorldMatrix(true,false);l.foot.position.copy(l.foot.parent.worldToLocal(newF.clone()));l.foot.updateWorldMatrix(false,true)}
   else{l.foot.quaternion.copy(l.foot.parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(footWorld));l.foot.updateWorldMatrix(false,true)}
  }}
- return {restore,reset,update,get count(){return legs.length},get contacts(){return contacts},get drift(){return contacts?drift/contacts:0},get detached(){return legs.some(l=>l.detached)}};
+ return {restore,reset,update,get compatible(){return compatible},get count(){return legs.length},get contacts(){return contacts},get drift(){return contacts?drift/contacts:0},get detached(){return legs.some(l=>l.detached)}};
 }
 
 // V0.9 natural motion layer: small additive, world-axis corrections applied after the mixer (breathing, weight shift,
@@ -68,8 +69,9 @@ function createMotionLayer(model,rootNode){const bones=[];model.traverse(n=>{if(
  const footL=get(bones,names.left[2]),footR=get(bones,names.right[2]);if(!B.pelvis||!B.sp3||!B.head||!B.al||!B.ar||!B.cl||!B.cr||!footL||!footR)return null;
  const rootQ=new T.Quaternion(),qa=new T.Quaternion(),qb=new T.Quaternion(),qc=new T.Quaternion(),axis=new T.Vector3(),p0=new T.Vector3(),pL=new T.Vector3(),pR=new T.Vector3(),fwd=new T.Vector3();
  const S={t:0,breath:0,m:0,s:0,lift:0,strength:0};
- function rot(bone,ax,angle){if(!bone||Math.abs(angle)<1e-5)return;axis.copy(ax).applyQuaternion(rootQ);qa.setFromAxisAngle(axis,angle);bone.getWorldQuaternion(qb).premultiply(qa);bone.parent.getWorldQuaternion(qc).invert();bone.quaternion.copy(qc.multiply(qb));bone.updateMatrixWorld(true)}
- function shift(bone,dx){axis.copy(AX).applyQuaternion(rootQ);bone.getWorldPosition(p0).addScaledVector(axis,dx);bone.parent.updateWorldMatrix(true,false);bone.position.copy(bone.parent.worldToLocal(p0));bone.updateMatrixWorld(true)}
+ const original=new Map();
+ function restore(){for(const [bone,q] of original)bone.quaternion.copy(q);original.clear();}
+ function rot(bone,ax,angle){if(!bone||Math.abs(angle)<1e-5)return;if(!original.has(bone))original.set(bone,bone.quaternion.clone());axis.copy(ax).applyQuaternion(rootQ);qa.setFromAxisAngle(axis,angle);bone.getWorldQuaternion(qb).premultiply(qa);bone.parent.getWorldQuaternion(qc).invert();bone.quaternion.copy(qc.multiply(qb));bone.updateMatrixWorld(true)}
  function apply(dt,o){const crouch=o.state.startsWith('crouch'),air=o.state==='jump'||o.state==='fall';const want=o.enabled&&o.grounded&&!air?(crouch?.55:1)*(1-Math.min(1,Math.max(0,o.landWeight)))*o.amount:0;S.strength=damp(S.strength,want,dt,.12);if(S.strength<.004)return false;
   const k=S.strength;S.t+=dt;rootNode.getWorldQuaternion(rootQ);model.updateWorldMatrix(true,true);
   S.m=damp(S.m,Math.min(1,o.speed/3.2),dt,.15);const m=S.m;
@@ -79,17 +81,17 @@ function createMotionLayer(model,rootNode){const bones=[];model.traverse(n=>{if(
   S.breath+=dt*(.23+.35*m)*Math.PI*2;const br=Math.sin(S.breath)*(.9+.5*m);
   const idle=(Math.sin(S.t*Math.PI*2/7.3)*.65+Math.sin(S.t*Math.PI*2/4.1+1.3)*.35)*(1-m);
   const roll=(-S.lift*m*.034+idle*.02)*k,twist=S.s*m*.075*k,swing=S.s*(.16*m)*k,flex=(.08+.26*Math.min(1,Math.max(0,(o.speed-1.4)/3.6)))*m*k;
-  shift(B.pelvis,(-S.lift*m*.014+idle*.011)*k);rot(B.pelvis,AZ,roll);rot(B.pelvis,AY,-.3*twist);
+  // Keep original pelvis and legs untouched; weight shift is upper-body only until rig mapping is validated.
   rot(B.sp2,AZ,-.55*roll);rot(B.sp2,AY,.45*twist);rot(B.sp3,AZ,-.25*roll);rot(B.sp3,AY,.55*twist);rot(B.sp3,AX,-br*.012*k);
   rot(B.cl,AZ,br*.010*k);rot(B.cr,AZ,-br*.010*k);rot(B.cl,AY,S.s*.035*m*k);rot(B.cr,AY,S.s*.035*m*k);
   rot(B.al,AX,swing);rot(B.ar,AX,-swing);rot(B.fl,AX,-flex);rot(B.fr,AX,-flex);
   rot(B.neck,AY,-.35*twist);rot(B.head,AY,-.3*twist);rot(B.head,AZ,.7*roll);rot(B.head,AX,br*.006*k);
   return true}
- return {apply,get strength(){return S.strength},get stride(){return S.s}};
+ return {apply,restore,get strength(){return S.strength},get stride(){return S.s}};
 }
 ''')
 
-rep("footIK=createFootIK(candidate);","solver=createLegSolver(candidate);natural=createMotionLayer(candidate,root);")
+rep("footIK=createFootIK(candidate);","solver=createLegSolver(candidate);natural=createMotionLayer(candidate,root);$('#foot-lock').disabled=!solver.compatible;if(!solver.compatible)$('#foot-lock').checked=false;$('#foot-lock').title=solver.compatible?'Foot correction while moving':'Unsupported foot hierarchy; original leg animation preserved';")
 rep("let gait={},gaitPhase=0,footIK=null,playing=new Set(),previousAudition=null;","let gait={},gaitPhase=0,solver=null,natural=null,playing=new Set(),previousAudition=null;")
 
 # ---------- 3. install(): merge baked clips ----------
@@ -126,7 +128,7 @@ function proceduralAnimate(dt){
 '''+procedural+'''
 }
 function animate(dt){if(!mixer){proceduralAnimate(dt);return}
- solver?.restore();
+ solver?.restore();natural?.restore();
  if(debugPose){const a=actions[debugPose.state];if(a){for(const [,o] of Object.entries(actions))if(o!==a)o.stop();if(!a.isRunning())a.reset().play();a.setEffectiveWeight(1);a.setEffectiveTimeScale(0);a.time=Math.min(debugPose.time,a.getClip().duration-1e-3);mixer.update(0);$('#gait-status').textContent='Pose '+debugPose.state+' @ '+debugPose.time.toFixed(2)+'s'}return}
  if(audition!==previousAudition){mixer.stopAllAction();playing.clear();gait={};gaitPhase=0;solver?.reset();previousAudition=audition;}
  if(auditionPaused&&audition)return;
@@ -145,9 +147,9 @@ function animate(dt){if(!mixer){proceduralAnimate(dt);return}
  for(const a of playing)if(!groups.has(a)){a.stop();playing.delete(a);}
  for(const [a,g] of groups){if(!playing.has(a)){a.reset().play();playing.add(a);}a.setEffectiveWeight(g.weight);if(sync&&g.cycle){a.time=gaitPhase*a.getClip().duration;a.setEffectiveTimeScale(0);}else a.setEffectiveTimeScale(g.rate/g.weight);}
  mixer.update(dt);
- const live=!audition&&!inspect,moved=natural?natural.apply(dt,{enabled:natural_ui.on&&live,amount:natural_ui.amount,speed:player.speed,state,landWeight:lw,grounded:player.grounded})||false:false;
- const lock=$('#foot-lock').checked&&live&&player.grounded&&!special&&player.speed>.15;solver?.update(dt,{lock,solve:moved&&$('#foot-lock').checked});
- $('#gait-status').textContent=Object.entries(gait).filter(([,w])=>w>.02).map(([k,w])=>k+' '+Math.round(w*100)+'%').join(' · ');$('#foot-status').textContent=solver?.count===2?(($('#foot-lock').checked?'Leg solver on':'Leg solver off')+(solver.detached?' (IK-style feet)':'')+' · '+solver.contacts+' contacts'+(natural?' · natural layer '+Math.round(natural.strength*100)+'%':'')):'Leg solver unavailable: matching leg bones not found';
+ const live=!audition&&!inspect;natural?.apply(dt,{enabled:natural_ui.on&&live,amount:natural_ui.amount,speed:player.speed,state,landWeight:lw,grounded:player.grounded});
+ const lock=!!solver?.compatible&&$('#foot-lock').checked&&live&&player.grounded&&!special&&state!=='land'&&player.speed>.15;solver?.update(dt,{lock});
+ $('#gait-status').textContent=Object.entries(gait).filter(([,w])=>w>.02).map(([k,w])=>k+' '+Math.round(w*100)+'%').join(' · ');$('#foot-status').textContent=solver?.compatible?(($('#foot-lock').checked?'Leg solver on':'Leg solver off')+' · '+solver.contacts+' contacts'):'Leg solver unavailable for this rig; original leg animation preserved';
 }
 '''
 js=js[:a]+new_animate+js[b:]
@@ -204,7 +206,7 @@ function setView(name){if(!(name in VIEWS))return;if(!inspect)$('#view').click()
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));$('#reset-view').onclick=()=>{if(inspect)$('#view').click();yaw=0;pitch=.18;zoom=4.5};
 $('#natural').onchange=e=>{natural_ui.on=e.target.checked};$('#natural-amount').oninput=e=>{natural_ui.amount=Number(e.target.value);$('#natural-label').textContent=natural_ui.amount.toFixed(2)+'×'};
 // Test/inspection hooks (read-only state plus deterministic poses for screenshots).
-window.CharacterLab={version:'0.9',setView,pose:(state,time=0)=>{debugPose=state?{state,time}:null},get state(){return {mode:player.state,speed:player.speed,x:player.x,z:player.z,y:player.y,grounded:player.grounded,yaw:player.yaw,clips:Object.keys(actions),loaded:!!model,source:$('#source').value,legs:solver?{count:solver.count,detached:solver.detached,contacts:solver.contacts}:null,natural:natural?natural.strength:null}},setMeta:o=>Object.assign(sourceMeta,o),get camera(){return {yaw,pitch,zoom}},
+window.CharacterLab={version:'0.9.1',setView,pose:(state,time=0)=>{debugPose=state?{state,time}:null},get state(){return {mode:player.state,speed:player.speed,x:player.x,z:player.z,y:player.y,grounded:player.grounded,yaw:player.yaw,clips:Object.keys(actions),loaded:!!model,source:$('#source').value,legs:solver?{count:solver.count,detached:solver.detached,contacts:solver.contacts}:null,natural:natural?natural.strength:null}},setMeta:o=>Object.assign(sourceMeta,o),get camera(){return {yaw,pitch,zoom}},
  footWorld(){const out={};model?.traverse(n=>{if(n.isBone&&/^foot_[lr]$|^ball_[lr]$/.test(n.name))out[n.name]=n.getWorldPosition(new T.Vector3()).toArray()});return out},
  bone(n){const o=model?.getObjectByName(n);return o?o.getWorldPosition(new T.Vector3()).toArray():null},setNatural(on,amt=1){natural_ui.on=on;natural_ui.amount=amt;$('#natural').checked=on;$('#natural-amount').value=String(amt)}};
 '''
