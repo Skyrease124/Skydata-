@@ -1,0 +1,96 @@
+{
+ "viewport": {
+  "width": 390,
+  "height": 664
+ },
+ "menuCollapsedByDefault": true,
+ "toggle": {
+  "x": 12,
+  "y": 67,
+  "w": 102.546875,
+  "h": 32
+ },
+ "panelBoxBefore": null,
+ "panelOpen": {
+  "x": 12,
+  "y": 107,
+  "w": 290,
+  "h": 345.265625
+ },
+ "panelAreaPct": 39,
+ "ariaExpanded": "true",
+ "closedAgain": true,
+ "headerBox": {
+  "x": 12,
+  "y": 12,
+  "w": 248.875,
+  "h": 87
+ },
+ "statsBox": {
+  "x": 316.40625,
+  "y": 10,
+  "w": 63.59375,
+  "h": 70
+ },
+ "buttonSizes": [
+  "w:48x48",
+  "a:48x48",
+  "s:48x48",
+  "d:48x48",
+  "shift:85x45",
+  "c:85x45",
+  " :85x45"
+ ],
+ "W": {
+  "mode": "walk",
+  "speed": 1.65
+ },
+ "W_RUN": {
+  "mode": "sprint",
+  "speed": 5.1
+ },
+ "pressedClass": [
+  "w",
+  "shift"
+ ],
+ "W_RUN_A": {
+  "mode": "sprint",
+  "speed": 5.1
+ },
+ "afterReleasingWandA_runStillHeld": [
+  "shift"
+ ],
+ "released": {
+  "mode": "idle",
+  "speed": 0
+ },
+ "stuck": 0,
+ "afterRapidJumpTaps": {
+  "mode": "idle",
+  "speed": 0
+ },
+ "crouch": {
+  "mode": "crouchIdle",
+  "speed": 0
+ },
+ "crouchWalk": {
+  "mode": "crouchWalk",
+  "speed": 0.95
+ },
+ "afterCancel": {
+  "mode": "idle",
+  "speed": 0
+ },
+ "stuckAfterCancel": 0,
+ "cameraYawChanged": true,
+ "fps": [
+  "10 FPS",
+  "10 FPS",
+  "9 FPS"
+ ],
+ "scrollOverflowX": false,
+ "hosts": [
+  "localhost:8124"
+ ],
+ "errors": []
+}

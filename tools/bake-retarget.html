@@ -1,0 +1,115 @@
+<!doctype html><meta charset=utf-8><title>bake</title>
+<!--
+  Character Lab V0.9 offline retarget baker (run in Chromium via tools/bake.js).
+  Source motion : Quaternius Universal Animation Library [Standard], CC0 1.0 (tools/sources/ual-standard.glb)
+  Target rig    : Sam (MakeHuman/MPFB CC0, Innerscene) - assets/characters/sam.glb. The character is NOT replaced; only clips are baked.
+  Method (all in world space, relative to each rig's own relaxed idle pose, so T-pose vs A-pose rests do not matter):
+    pelvis/spine/neck/head/clavicle/foot/toe : world rotation delta  tA = (sA * sIdle^-1) * tIdle
+    arms (upperarm/forearm/hand)              : rest-follow orientation, then aim bone at the source's world direction
+    legs                                      : two-bone IK (thigh/calf) to the retargeted ankle, source knee as pole vector
+    hips/ankle translation                    : (source - source idle) * (target hip height / source hip height)
+    fingers                                   : held in Sam's relaxed idle finger pose
+-->
+<script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
+<script type="module">
+import * as T from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+const L=new GLTFLoader();L.setMeshoptDecoder(MeshoptDecoder);const load=u=>new Promise((r,j)=>L.load(u,r,undefined,j));
+const [sam,ual]=await Promise.all([load('../assets/characters/sam.glb'),load('./sources/ual-standard.glb')]);
+const FPS=30;
+// source name -> target name (three.js strips dots from node names)
+const MAP={pelvis:'DEF-hips',spine_01:'DEF-spine001',spine_02:'DEF-spine002',spine_03:'DEF-spine003',neck_01:'DEF-neck',head:'DEF-head',
+ clavicle_l:'DEF-shoulderL',upperarm_l:'DEF-upper_armL',lowerarm_l:'DEF-forearmL',hand_l:'DEF-handL',
+ clavicle_r:'DEF-shoulderR',upperarm_r:'DEF-upper_armR',lowerarm_r:'DEF-forearmR',hand_r:'DEF-handR',
+ thigh_l:'DEF-thighL',calf_l:'DEF-shinL',foot_l:'DEF-footL',ball_l:'DEF-toeL',thigh_r:'DEF-thighR',calf_r:'DEF-shinR',foot_r:'DEF-footR',ball_r:'DEF-toeR',
+ middle_01_l:'DEF-f_middle01L',middle_01_r:'DEF-f_middle01R'};
+const tb=n=>sam.scene.getObjectByName(n),sb=n=>ual.scene.getObjectByName(n);
+sam.scene.updateMatrixWorld(true);const ARM=['clavicle','upperarm','lowerarm','hand'];const bindQ={};for(const s of ['l','r'])for(const a of ARM)bindQ[a+'_'+s]=tb(a+'_'+s).getWorldQuaternion(new T.Quaternion());
+for(const [t,s] of Object.entries(MAP))if(!tb(t)||!sb(s))throw Error('missing bone '+t+' / '+s);
+const V=()=>new T.Vector3(),Q=()=>new T.Quaternion();
+const wp=o=>o.getWorldPosition(V()),wq=o=>o.getWorldQuaternion(Q());
+// ---- target idle reference (Sam Idle_Standing t=0) ----
+const tMixer=new T.AnimationMixer(sam.scene);const tIdleClip=sam.animations.find(c=>c.name==='Idle_Standing');tMixer.clipAction(tIdleClip).play();tMixer.setTime(0);sam.scene.updateMatrixWorld(true);
+const targetBones=[];sam.scene.traverse(o=>{if(o.isBone)targetBones.push(o)});
+const idleLocal=new Map(targetBones.map(b=>[b,{p:b.position.clone(),q:b.quaternion.clone(),s:b.scale.clone()}]));
+const tIdle={};for(const n of Object.keys(MAP)){const b=tb(n);tIdle[n]={q:wq(b),p:wp(b)}}
+tMixer.stopAllAction();
+const resetTarget=()=>{for(const [b,l] of idleLocal){b.position.copy(l.p);b.quaternion.copy(l.q);b.scale.copy(l.s)}sam.scene.updateMatrixWorld(true)};
+// ---- source idle reference (UAL Idle_Loop t=0) ----
+const sMixer=new T.AnimationMixer(ual.scene);const sAct=n=>sMixer.clipAction(ual.animations.find(c=>c.name===n));
+let sIdle={};{sMixer.stopAllAction();sAct('Idle_Loop').play();sMixer.setTime(0);ual.scene.updateMatrixWorld(true);for(const [t,s] of Object.entries(MAP)){const b=sb(s);sIdle[t]={q:wq(b),p:wp(b)}}}
+const k=tIdle.pelvis.p.y/sIdle.pelvis.p.y; // proportion scale
+console.log('scale k',k.toFixed(3),'sam hips',tIdle.pelvis.p.y.toFixed(3),'ual hips',sIdle.pelvis.p.y.toFixed(3));
+const aimQ=(from,to)=>{const a=from.clone().normalize(),b=to.clone().normalize();return Q().setFromUnitVectors(a,b)};
+function setWorldQ(bone,q){const pq=bone.parent?wq(bone.parent):Q();bone.quaternion.copy(pq.invert().multiply(q));bone.updateMatrixWorld(true)}
+function setWorldP(bone,p){bone.parent.updateWorldMatrix(true,false);bone.position.copy(bone.parent.worldToLocal(p.clone()));bone.updateMatrixWorld(true)}
+// local idle direction from a bone to a world point, expressed in the bone's own idle frame
+const localDir=(bone,pointWorld)=>pointWorld.clone().sub(tIdle[bone].p).applyQuaternion(tIdle[bone].q.clone().invert());
+const restFollow=(bone,parent)=>wq(tb(parent)).multiply(tIdle[parent].q.clone().invert().multiply(tIdle[bone].q)); // orientation if bone kept its idle local rotation
+// aim bone at direction dirWorld, starting from rest-follow orientation, with chosen idle local axis
+function aimBone(bone,parent,localAxis,dirWorld){const O=restFollow(bone,parent);const cur=localAxis.clone().applyQuaternion(O);setWorldQ(tb(bone),aimQ(cur,dirWorld).multiply(O))}
+const idleChild={upperarm_l:'lowerarm_l',lowerarm_l:'hand_l',hand_l:'middle_01_l',upperarm_r:'lowerarm_r',lowerarm_r:'hand_r',hand_r:'middle_01_r'};
+const parentOf={upperarm_l:'clavicle_l',lowerarm_l:'upperarm_l',hand_l:'lowerarm_l',upperarm_r:'clavicle_r',lowerarm_r:'upperarm_r',hand_r:'lowerarm_r',thigh_l:'pelvis',calf_l:'thigh_l',thigh_r:'pelvis',calf_r:'thigh_r'};
+const armAxis={};for(const b of Object.keys(idleChild))armAxis[b]=localDir(b,tIdle[idleChild[b]].p);
+const legLen={};for(const s of ['l','r']){legLen[s]={a:tIdle['thigh_'+s].p.distanceTo(tIdle['calf_'+s].p),b:tIdle['calf_'+s].p.distanceTo(tIdle['foot_'+s].p)}}
+const thighAxis={},calfAxis={};for(const s of ['l','r']){thighAxis[s]=localDir('thigh_'+s,tIdle['calf_'+s].p);calfAxis[s]=localDir('calf_'+s,tIdle['foot_'+s].p)}
+
+function solvePose(){ // source pose is current in ual.scene (matrices updated). writes target local transforms.
+ resetTarget();const S={};for(const [t,s] of Object.entries(MAP)){const b=sb(s);S[t]={q:wq(b),p:wp(b)}}
+ const delta=n=>S[n].q.clone().multiply(sIdle[n].q.clone().invert()).multiply(tIdle[n].q);
+ // pelvis
+ setWorldQ(tb('pelvis'),delta('pelvis'));
+ const hip=tIdle.pelvis.p.clone().add(S.pelvis.p.clone().sub(sIdle.pelvis.p).multiplyScalar(k));setWorldP(tb('pelvis'),hip);
+ for(const n of ['spine_01','spine_02','spine_03','neck_01','head','clavicle_l','clavicle_r'])setWorldQ(tb(n),delta(n));
+ for(const s of ['l','r']){
+  for(const n of ['upperarm_','lowerarm_','hand_']){const b=n+s,c=idleChild[b];aimBone(b,parentOf[b],armAxis[b],S[c].p.clone().sub(S[b].p))}
+  // legs: IK to retargeted ankle
+  const H=wp(tb('thigh_'+s)),F=tIdle['foot_'+s].p.clone().add(S['foot_'+s].p.clone().sub(sIdle['foot_'+s].p).multiplyScalar(k));
+  const dv=F.clone().sub(H);let d=dv.length();const {a,b}=legLen[s];d=Math.min(a+b-1e-4,Math.max(Math.abs(a-b)+1e-4,d));const dir=dv.clone().normalize();
+  let bend=S['calf_'+s].p.clone().sub(S['thigh_'+s].p);const sd=S['foot_'+s].p.clone().sub(S['thigh_'+s].p).normalize();bend.addScaledVector(sd,-bend.dot(sd));
+  if(bend.lengthSq()<1e-8)bend.set(0,0,1);bend.normalize();
+  const along=(a*a-b*b+d*d)/(2*d),side=Math.sqrt(Math.max(0,a*a-along*along));
+  const K=H.clone().addScaledVector(dir,along).addScaledVector(bend,side);
+  aimBone('thigh_'+s,'pelvis',thighAxis[s],K.clone().sub(H));
+  aimBone('calf_'+s,'thigh_'+s,calfAxis[s],H.clone().addScaledVector(dir,d).sub(K));
+  setWorldP(tb('foot_'+s),F);setWorldQ(tb('foot_'+s),delta('foot_'+s));setWorldQ(tb('ball_'+s),delta('ball_'+s));
+ }
+ return {S};
+}
+const OUT_BONES=['pelvis','spine_01','spine_02','spine_03','neck_01','head','clavicle_l','upperarm_l','lowerarm_l','hand_l','clavicle_r','upperarm_r','lowerarm_r','hand_r','thigh_l','calf_l','foot_l','ball_l','thigh_r','calf_r','foot_r','ball_r'];
+const FINGER_BONES=targetBones.filter(b=>/(index|middle|pinky|ring|thumb)_0\d_[lr]$/.test(b.name)).map(b=>b.name);
+const JOBS=[ // out: Sam state, src: UAL clip, t0/t1 trim (s), loop
+ {out:'crouchIdle',src:'Crouch_Idle_Loop',t0:0,t1:2.93,loop:true},
+ {out:'crouchWalk',src:'Crouch_Fwd_Loop',t0:0,t1:2.0,loop:true,speed:true},
+ {out:'jump',src:'Jump_Start',t0:0.08,t1:0.5,loop:false},
+ {out:'fall',src:'Jump_Loop',t0:0,t1:2.5,loop:true},
+ {out:'land',src:'Jump_Land',t0:0.08,t1:0.95,loop:false}];
+const result={meta:{fps:FPS,source:'Quaternius Universal Animation Library [Standard] (CC0 1.0)',target:'Sam (MakeHuman CC0, Innerscene)',k},clips:{}};
+const r5=x=>Math.round(x*1e5)/1e5;
+for(const job of JOBS){
+ const clip=ual.animations.find(c=>c.name===job.src);sMixer.stopAllAction();sMixer.clipAction(clip).play();
+ const n=Math.max(2,Math.round((job.t1-job.t0)*FPS)),times=[],quats={},pos={pelvis:[],foot_l:[],foot_r:[]};for(const b of OUT_BONES)quats[b]=[];
+ const feet=[];let hipsMin=9,hipsMax=0;
+ for(let i=0;i<(job.loop?n:n+1);i++){const t=job.t0+i/FPS;sMixer.setTime(t);ual.scene.updateMatrixWorld(true);const {S}=solvePose();times.push(r5(i/FPS));
+  for(const b of OUT_BONES){const q=tb(b).quaternion;const prev=quats[b].length?quats[b].slice(-4):null;let a=[q.x,q.y,q.z,q.w];if(prev&&(a[0]*prev[0]+a[1]*prev[1]+a[2]*prev[2]+a[3]*prev[3])<0)a=a.map(x=>-x);quats[b].push(...a.map(r5))}
+  for(const b of Object.keys(pos))pos[b].push(...tb(b).position.toArray().map(r5));
+  const ly=wp(tb('foot_l')),ry=wp(tb('foot_r'));feet.push([t,ly,ry,wp(tb('pelvis'))]);hipsMin=Math.min(hipsMin,feet.at(-1)[3].y);hipsMax=Math.max(hipsMax,feet.at(-1)[3].y);}
+ const entry={duration:r5(times.length/FPS-(job.loop?0:1/FPS)),times,quats,pos,loop:job.loop,hips:[r5(hipsMin),r5(hipsMax)]};
+ if(job.speed){ // nominal ground speed: mean backward speed of the stance foot (lowest foot) relative to pelvis
+  let sum=0,cnt=0;for(let i=1;i<feet.length;i++){for(const f of [1,2]){const prev=feet[i-1],cur=feet[i];const rel=(cur[f].z-cur[3].z)-(prev[f].z-prev[3].z);const low=Math.min(cur[1].y,cur[2].y);if(cur[f].y<low+0.015&&cur[f].y<0.12){sum+=-rel*FPS;cnt++}}}
+  entry.nominalSpeed=r5(sum/Math.max(1,cnt));}
+ result.clips[job.out]=entry;console.log(job.out,'frames',times.length,'dur',entry.duration,'hips',entry.hips,'speed',entry.nominalSpeed??'');
+}
+
+// ---- Sam's own Jog / Run swing the arms on the SAME side as the leg (calf~hand corr +0.79 / +0.88). Natural gait is contralateral.
+// Fix: swap left/right arm chains by mirroring each bone's world rotation delta (reflection across the sagittal plane: (x,-y,-z,w)).
+result.fixes={};const mirror=q=>new T.Quaternion(q.x,-q.y,-q.z,q.w);const fMixer=new T.AnimationMixer(sam.scene);
+for(const name of ['Jog','Run']){const clip=sam.animations.find(c=>c.name===name);fMixer.stopAllAction();fMixer.clipAction(clip).play();
+ const n=Math.round(clip.duration*FPS),times=[],quats={};for(const s of ['l','r'])for(const a of ARM)quats[a+'_'+s]=[];
+ for(let i=0;i<n;i++){fMixer.setTime(i/FPS);sam.scene.updateMatrixWorld(true);times.push(r5(i/FPS));
+  const delta={};for(const s of ['l','r'])for(const a of ARM){const b=a+'_'+s;delta[b]=tb(b).getWorldQuaternion(new T.Quaternion()).multiply(bindQ[b].clone().invert())}
+  for(const a of ARM)for(const s of ['l','r']){const other=s==='l'?'r':'l';const wq=mirror(delta[a+'_'+other]).multiply(bindQ[a+'_'+s]);const bone=tb(a+'_'+s);setWorldQ(bone,wq);const q=bone.quaternion;const prev=quats[a+'_'+s].length?quats[a+'_'+s].slice(-4):null;let v=[q.x,q.y,q.z,q.w];if(prev&&(v[0]*prev[0]+v[1]*prev[1]+v[2]*prev[2]+v[3]*prev[3])<0)v=v.map(x=>-x);quats[a+'_'+s].push(...v.map(r5))}}
+ result.fixes[name]={duration:r5(n/FPS),times,quats};console.log('arm fix',name,'frames',n)}
+// relaxed idle fingers from Sam's own idle pose
+result.fingers={};for(const n of FINGER_BONES){const l=idleLocal.get(tb(n));result.fingers[n]=[l.q.x,l.q.y,l.q.z,l.q.w].map(r5)}
+window.OUT=result;document.title='done';
+</script>

@@ -1,0 +1,102 @@
+{
+ "loadMs": 3434,
+ "sources": [
+  "Custom human (file not bundled) [disabled]",
+  "Sam · MakeHuman locomotion [enabled]",
+  "Casual Man · textured human (file not bundled) [disabled]",
+  "Andre · detailed face / mocap (file not bundled) [disabled]",
+  "Casual Walker · hoodie (file not bundled) [disabled]",
+  "Development proxy (offline) [enabled]"
+ ],
+ "state0": {
+  "mode": "idle",
+  "speed": 0,
+  "x": 0,
+  "z": 0,
+  "y": 0,
+  "grounded": true,
+  "yaw": 3.141592653589793,
+  "clips": [
+   "idle",
+   "walk",
+   "jog",
+   "sprint",
+   "crouchIdle",
+   "crouchWalk",
+   "jump",
+   "fall",
+   "land"
+  ],
+  "loaded": true,
+  "source": "sam",
+  "legs": {
+   "count": 2,
+   "detached": true,
+   "contacts": 0
+  },
+  "natural": 0.9955580715740657
+ },
+ "report": [
+  "Rigged model · 7 clips. Missing optional: none. Retargeted jump/fall/land/crouch added.",
+  "14 skinned meshes · 7 original clips + 5 retargeted",
+  "Leg solver on (IK-style feet) · 0 contacts · natural layer 100%"
+ ],
+ "walk": [
+  "walk"
+ ],
+ "sprint": [
+  "walk",
+  "jog",
+  "sprint"
+ ],
+ "jump1": [
+  "jump",
+  "fall",
+  "land",
+  "idle"
+ ],
+ "jump2": [
+  "jump",
+  "fall",
+  "land",
+  "idle"
+ ],
+ "crouchIdle": [
+  "crouchIdle"
+ ],
+ "crouchWalk": [
+  "crouchWalk"
+ ],
+ "gaitDuringCrouch": "crouchWalk 7% · idle 93%",
+ "fps": [
+  "7 FPS",
+  "7 FPS",
+  "8 FPS",
+  "8 FPS"
+ ],
+ "hosts": [
+  "localhost:8124"
+ ],
+ "errors": [],
+ "requests": [
+  "/index.html",
+  "/vendor/three/build/three.module.js",
+  "/vendor/three/examples/jsm/loaders/GLTFLoader.js",
+  "/vendor/three/examples/jsm/libs/meshopt_decoder.module.js",
+  "/vendor/three/examples/jsm/utils/BufferGeometryUtils.js",
+  "/assets/manifest.json",
+  "/assets/characters/sam.glb",
+  "/assets/hero.glb",
+  "http://localhost:8124/668022e8-4c99-4215-8aa8-6b9a5e0cb356",
+  "http://localhost:8124/30a20c95-19d9-4239-ade3-744572ec1c5f",
+  "http://localhost:8124/bcbdac2c-b2b8-455b-b325-2aa6d1842c70",
+  "http://localhost:8124/fe07df4e-1ed7-4d36-8e61-b15cf41ac021",
+  "http://localhost:8124/7de29771-bea2-4bdb-9434-480e5c3b35a3",
+  "http://localhost:8124/68bb3b6a-9eb7-424e-9677-fda6151abcc6",
+  "http://localhost:8124/49b61793-3ef0-4fb8-9aab-9dbca0412302",
+  "http://localhost:8124/a8823d5f-08b6-48d4-a1c9-9a722a9a2609",
+  "http://localhost:8124/2f2ce73b-9b61-40ed-83d6-ab72b15b74f4",
+  "http://localhost:8124/ba127438-df6a-49c7-81ca-bc1eafee018e",
+  "/assets/anims/ual-to-sam.json"
+ ]
+}

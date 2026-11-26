@@ -1,0 +1,13 @@
+<!doctype html><meta charset=utf-8><script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
+<script type="module">
+import * as T from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+const L=new GLTFLoader();L.setMeshoptDecoder(MeshoptDecoder);
+const load=u=>new Promise((res,rej)=>L.load(u,res,undefined,rej));
+const out={};
+for(const [k,u] of [['sam','../assets/characters/sam.glb'],['ual','./sources/ual-standard.glb']]){
+ const g=await load(u);g.scene.updateMatrixWorld(true);const bones={};
+ g.scene.traverse(o=>{if(o.isBone){const p=o.getWorldPosition(new T.Vector3()),q=o.getWorldQuaternion(new T.Quaternion());const s=o.getWorldScale(new T.Vector3());bones[o.name]={p:p.toArray().map(x=>+x.toFixed(3)),par:o.parent?.name,s:s.x.toFixed(3)}}});
+ out[k]={bones,sceneScale:g.scene.scale.toArray(),clips:g.animations.map(c=>c.name+':'+c.tracks.length+':'+c.tracks.slice(0,3).map(t=>t.name).join(','))};
+}
+window.OUT=out;document.title='done';
+</script>

@@ -1,0 +1,31 @@
+<!doctype html><meta charset=utf-8><title>clip speed</title><script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
+<script type="module">
+import * as T from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+const L=new GLTFLoader();L.setMeshoptDecoder(MeshoptDecoder);const sam=await new Promise((r,j)=>L.load('../assets/characters/sam.glb',r,undefined,j));const baked=await (await fetch('../assets/anims/ual-to-sam.json')).json();
+const clips=[...sam.animations];for(const name of ['Jog','Run']){const orig=sam.animations.find(c=>c.name===name),fx=baked.fixes[name];const drop=new Set(Object.keys(fx.quats).map(b=>b+'.quaternion')),tracks=orig.tracks.filter(t=>!drop.has(t.name)),times=[...fx.times,fx.duration];for(const [b,a] of Object.entries(fx.quats))tracks.push(new T.QuaternionKeyframeTrack(b+'.quaternion',times,[...a,...a.slice(0,4)]));clips.push(new T.AnimationClip(name+'_FIXED',orig.duration,tracks))}for(const [state,c] of Object.entries(baked.clips)){const times=[...c.times];if(c.loop)times.push(c.duration);const w=(a,n)=>c.loop?[...a,...a.slice(0,n)]:a;const tr=[];for(const [b,a] of Object.entries(c.quats))tr.push(new T.QuaternionKeyframeTrack(b+'.quaternion',times,w(a,4)));for(const [b,a] of Object.entries(c.pos))tr.push(new T.VectorKeyframeTrack(b+'.position',times,w(a,3)));clips.push(new T.AnimationClip('baked_'+state,c.duration,tr))}
+const mixer=new T.AnimationMixer(sam.scene),pel=sam.scene.getObjectByName('pelvis'),fl=sam.scene.getObjectByName('foot_l'),fr=sam.scene.getObjectByName('foot_r');
+const out={};
+for(const c of clips){if(!/walk|jog|run|baked_crouchWalk|brisk|carry/i.test(c.name))continue;mixer.stopAllAction();mixer.clipAction(c).play();const N=Math.round(c.duration*60),dt=c.duration/N,F=[];
+ for(let i=0;i<=N;i++){mixer.setTime(dt*i);sam.scene.updateMatrixWorld(true);const P=pel.getWorldPosition(new T.Vector3()),A=fl.getWorldPosition(new T.Vector3()),B=fr.getWorldPosition(new T.Vector3());F.push({A,B,rel:[A.z-P.z,B.z-P.z]})}
+ const ymin=Math.min(...F.map(f=>Math.min(f.A.y,f.B.y)));let sum=0,cnt=0;
+ for(let i=1;i<=N;i++){const stance=F[i].A.y<F[i].B.y?0:1,y=stance?F[i].B.y:F[i].A.y;if(y<ymin+.03&&(stance?F[i-1].B.y:F[i-1].A.y)<ymin+.03){sum+=-(F[i].rel[stance]-F[i-1].rel[stance])/dt;cnt++}}
+ out[c.name]={dur:+c.duration.toFixed(3),speed:+(sum/Math.max(1,cnt)).toFixed(3),stanceFrames:cnt+'/'+N,ankleMin:+ymin.toFixed(3)}}
+
+// arm/leg phase check: correlation of left foot vs left/right hand forward position (relative to pelvis); natural gait is strongly negative for the same side
+const hl=sam.scene.getObjectByName('hand_l'),hr=sam.scene.getObjectByName('hand_r');out.phase={};
+const corr=(a,c)=>{const ma=a.reduce((x,y)=>x+y,0)/a.length,mc=c.reduce((x,y)=>x+y,0)/c.length;let n=0,da=0,dc=0;for(let i=0;i<a.length;i++){n+=(a[i]-ma)*(c[i]-mc);da+=(a[i]-ma)**2;dc+=(c[i]-mc)**2}return n/Math.sqrt(da*dc||1)},sd=a=>{const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/a.length)};
+for(const c of clips){if(!/Walk_Relaxed|Walk_Brisk|Jog|Run|baked_crouchWalk/.test(c.name))continue;mixer.stopAllAction();mixer.clipAction(c).play();const N=Math.round(c.duration*60),FZ=[],HLZ=[],HRZ=[],LAT=[];
+ for(let i=0;i<N;i++){mixer.setTime(c.duration*i/N);sam.scene.updateMatrixWorld(true);const P=pel.getWorldPosition(new T.Vector3());FZ.push(fl.getWorldPosition(new T.Vector3()).z-P.z);HLZ.push(hl.getWorldPosition(new T.Vector3()).z-P.z);HRZ.push(hr.getWorldPosition(new T.Vector3()).z-P.z)}
+ out.phase[c.name]={'corr(footL,handL)':+corr(FZ,HLZ).toFixed(2),'corr(footL,handR)':+corr(FZ,HRZ).toFixed(2),handSwingSd:+sd(HLZ).toFixed(3),footSwingSd:+sd(FZ).toFixed(3)}}
+
+const cl=sam.scene.getObjectByName('clavicle_l'),cr=sam.scene.getObjectByName('clavicle_r'),tl=sam.scene.getObjectByName('thigh_l'),trr=sam.scene.getObjectByName('thigh_r');out.torso={};
+for(const c of clips){if(!/Walk_Relaxed|Walk_Brisk|Jog|Run/.test(c.name))continue;mixer.stopAllAction();mixer.clipAction(c).play();const N=Math.round(c.duration*60),stride=[],sh=[],hip=[],arm=[];
+ for(let i=0;i<N;i++){mixer.setTime(c.duration*i/N);sam.scene.updateMatrixWorld(true);const z=o=>o.getWorldPosition(new T.Vector3()).z;stride.push(z(fl)-z(fr));sh.push(z(cl)-z(cr));hip.push(z(tl)-z(trr));arm.push(z(hl)-z(hr))}
+ out.torso[c.name]={'stride~shoulderYaw':+corr(stride,sh).toFixed(2),'stride~hipYaw':+corr(stride,hip).toFixed(2),'stride~handDiff':+corr(stride,arm).toFixed(2),shoulderAmp:+sd(sh).toFixed(3),hipAmp:+sd(hip).toFixed(3)}}
+
+const cal=sam.scene.getObjectByName('calf_l'),car=sam.scene.getObjectByName('calf_r'),ual=null;out.legs={};
+for(const c of clips){if(!/Walk_Relaxed|Walk_Brisk|Jog|Run/.test(c.name))continue;mixer.stopAllAction();mixer.clipAction(c).play();const N=Math.round(c.duration*60),foot=[],calf=[],hand=[],upper=[];
+ for(let i=0;i<N;i++){mixer.setTime(c.duration*i/N);sam.scene.updateMatrixWorld(true);const z=o=>o.getWorldPosition(new T.Vector3()).z;foot.push(z(fl)-z(fr));calf.push(z(cal)-z(car));hand.push(z(hl)-z(hr))}
+ out.legs[c.name]={'footStride~calfStride':+corr(foot,calf).toFixed(2),'calfStride~handDiff':+corr(calf,hand).toFixed(2),'footStride~handDiff':+corr(foot,hand).toFixed(2)}}
+const box=new T.Box3().setFromObject(sam.scene);out.fit={height:box.max.y-box.min.y,scale:1.78/(box.max.y-box.min.y)};window.OUT=out;document.title='done';
+</script>

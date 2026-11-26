@@ -1,0 +1,9 @@
+<!doctype html><meta charset=utf-8><script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
+<script type="module">
+import * as T from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const g=await new Promise((r,j)=>new GLTFLoader().load('./sources/ual-standard.glb',r,undefined,j));
+const mixer=new T.AnimationMixer(g.scene);const hips=g.scene.getObjectByName('DEF-hips'),fl=g.scene.getObjectByName('DEF-footL'),fr=g.scene.getObjectByName('DEF-footR');
+const out={};
+for(const n of ['Jump_Start','Jump_Loop','Jump_Land','Crouch_Idle_Loop','Crouch_Fwd_Loop','Idle_Loop','Walk_Loop','Jog_Fwd_Loop']){const c=g.animations.find(x=>x.name===n);mixer.stopAllAction();const a=mixer.clipAction(c).play();const rows=[];const step=c.duration/16;for(let t=0;t<=c.duration+1e-6;t+=step){mixer.setTime(t);g.scene.updateMatrixWorld(true);const h=hips.getWorldPosition(new T.Vector3()),l=fl.getWorldPosition(new T.Vector3()),r=fr.getWorldPosition(new T.Vector3());rows.push([+t.toFixed(2),+h.y.toFixed(2),+h.z.toFixed(2),+l.y.toFixed(2),+r.y.toFixed(2)])}out[n]=rows}
+window.OUT=out;document.title='done';
+</script>
